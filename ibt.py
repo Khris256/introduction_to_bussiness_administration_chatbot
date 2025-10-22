@@ -2,6 +2,7 @@ import streamlit as st
 import pickle
 import os
 from dotenv import load_dotenv
+from streamlit_extras.add_vertical_space import add_vertical_space
 
 # Try importing with error handling
 try:
@@ -15,7 +16,7 @@ try:
 except ImportError as e:
     st.error(f"❌ Import Error: {e}")
     st.error("Dependencies may be incompatible. Check requirements.txt")
-    st.info("Required: pydantic==1.10.13, langchain-google-genai==0.0.11")
+    st.info("Required: pydantic, langchain-google-genai")
     st.stop()
 
 load_dotenv()
@@ -31,7 +32,7 @@ else:
     st.stop()
 
 st.set_page_config(
-    page_title="IBT Chatbot",
+    page_title="IBT Chatbot😎",
     page_icon="💡",
     layout="centered",
     initial_sidebar_state="auto",
@@ -42,9 +43,10 @@ with st.sidebar:
     st.title("IBT assistant😊")
     st.markdown('''
         ## About
-        This app was designed your fellow students to ease your revision process 
+        Welcome to the IBT Chatbot, your intelligent study companion designed by students, for students! This app simplifies your revision process by providing instant, accurate answers to your questions about IBT. Perfectly trained from our lecture notes.
     ''')
-    st.write('Made by romy')
+    add_vertical_space()
+    st.write('Made by Romy')
 
 # Custom CSS for dark theme
 st.markdown(
@@ -110,12 +112,12 @@ def load_vector_store(path):
         st.error(f"Available files: {os.listdir('.')}")
         st.stop()
     
-    file_size = os.path.getsize(path) / (1024 * 1024)  # Size in MB
+    
     
     try:
         with open(path, "rb") as f:
             vector_store = pickle.load(f)
-        st.success(f"✅ Vector store loaded successfully! ({file_size:.2f} MB) - Everything is set, make a prompt below!")
+        st.success(f"Hi there ✌️ I am Romy AI designed to help you answer questions about IBT. Ask any question below.")
         return vector_store
     except Exception as e:
         st.error(f"❌ Error loading vector store: {str(e)}")
@@ -126,13 +128,14 @@ def setup_qa_chain(_vector_store):
     """Set up the QA chain using modern LangChain approach"""
     llm = ChatGoogleGenerativeAI(
         temperature=0, 
-        model="gemini-1.5-flash"
+        model="gemini-2.5-flash"
     )
     
     # Create prompt template
     prompt = ChatPromptTemplate.from_template("""
-    Answer the following question based only on the provided context.
-    Think step by step before providing a detailed answer.
+    You are an expert in Bussiness administration. Answer the following question based only on the provided context.
+    Think step by step and provide a clear, detailed answer.
+    If the context doesn't contain enough information, say so but go ahead use the data you where trained on to answer the prompt provided.
     
     <context>
     {context}
@@ -175,7 +178,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # Chat input
-if prompt := st.chat_input("Ask a question about System Analysis and Design:"):
+if prompt := st.chat_input("Ask a question about Introduction to  bussiness administration"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
