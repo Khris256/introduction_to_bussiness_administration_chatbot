@@ -1,22 +1,20 @@
 # Main Frameworks
-streamlit>=1.35.0
+streamlit>=1.40.0
 langchain>=0.3.0
 langchain-community>=0.3.0
 langchain-core>=0.3.0
 
-# Google AI Integration
+# Google & HuggingFace (The Engines)
 langchain-google-genai>=2.0.0
+langchain-huggingface
 google-generativeai
+sentence-transformers
 
-# Validation & Utilities
-pydantic>=2.0.0
-python-dotenv
-
-# Streamlit UI Components
-streamlit-extras
-streamlit-card
-st-annotated-text
-
-# PDF & Search (If your chatbot reads files)
-pypdf2
+# Storage & Search
 faiss-cpu
+pypdf2
+
+# UI & Utilities
+streamlit-extras
+python-dotenv
+pydantic>=2.0.0
