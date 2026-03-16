@@ -7,6 +7,9 @@ langchain-community
 langchain-google-genai
 langchain-core
 langchain-text-splitters
+pydantic
+langchain-google-genai
+streamlit_extras
 
 # Data and Vector Search
 faiss-cpu
