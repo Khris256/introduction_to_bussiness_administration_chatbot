@@ -18,18 +18,18 @@ if "transformers.core_model_loading" not in sys.modules:
     stub_module.PyTorchModelHubMixin = type("PyTorchModelHubMixin", (), {})
 # ---------------------------------
 
-# Try importing with error handling
+# --- MODERN IMPORTS ---
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    # USE THE NEW HUGGINGFACE PACKAGE
+    from langchain_huggingface import HuggingFaceEmbeddings 
+    # THESE REQUIRE langchain-community to be installed
+    from langchain.chains import create_retrieval_chain
     from langchain.chains.combine_documents import create_stuff_documents_chain
-    from langchain.chains.retrieval import create_retrieval_chain
     from langchain_core.prompts import ChatPromptTemplate
     from streamlit_extras.add_vertical_space import add_vertical_space
 except ImportError as e:
     st.error(f"❌ Import Error: {e}")
-    st.error("Dependencies may be incompatible. Check requirements.txt")
-    st.info("Required: pydantic, langchain-google-genai, streamlit_extras")
     st.stop()
 
 # Import subject registry
@@ -139,16 +139,22 @@ def load_embeddings():
 
 @st.cache_resource
 def load_vector_store(path, subject_name):
-    """Load the pre-created vector store from pickle file"""
+    """Load the pre-created vector store with Pydantic v1/v2 compatibility shim"""
     if not os.path.exists(path):
         return None, f"❌ Vector store for **{subject_name}** not found at `{path}`."
     
     try:
+        import langchain_core.pydantic_v1 as pydantic_v1
+        import sys
+        # This tricks older pickled objects into finding their Pydantic classes
+        sys.modules['pydantic.v1'] = pydantic_v1
+        
         with open(path, "rb") as f:
             vector_store = pickle.load(f)
         return vector_store, None
     except Exception as e:
-        return None, f"❌ Error loading vector store for {subject_name}: {str(e)}"
+        # Fallback: If pickle fails, the store may need to be recreated with the new version
+        return None, f"❌ Serialization Error: {str(e)}. Tip: Re-generate the .pkl file using the current environment."
 
 @st.cache_resource
 def setup_qa_chain(_vector_store, subject_prompt):
