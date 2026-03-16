@@ -27,7 +27,7 @@ wheels/
 *.egg
 
 # Vector store (this file is large)
-ITB_notes_2025.pkl
+
 
 # IDE
 .vscode/

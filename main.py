@@ -2,7 +2,7 @@ import streamlit as st
 from dotenv import load_dotenv
 import pickle
 import os
-#from streamlit_extras.add_vertical_space import add_vertical_space
+from streamlit_extras.add_vertical_space import add_vertical_space
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS

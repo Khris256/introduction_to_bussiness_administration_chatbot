@@ -2,53 +2,59 @@ import streamlit as st
 import pickle
 import os
 from dotenv import load_dotenv
-from streamlit_extras.add_vertical_space import add_vertical_space
+
+import sys
+import types
+
+# --- PICKLE COMPATIBILITY STUB ---
+# The vector stores were created with a transformers version that included 
+# an internal module called 'transformers.core_model_loading'. 
+# Since this module is missing in the current version, we stub it here 
+# to allow pickle.load() to succeed.
+if "transformers.core_model_loading" not in sys.modules:
+    stub_module = types.ModuleType("transformers.core_model_loading")
+    sys.modules["transformers.core_model_loading"] = stub_module
+    # Add dummy classes found during inspection to satisfy unpickler
+    stub_module.PyTorchModelHubMixin = type("PyTorchModelHubMixin", (), {})
+# ---------------------------------
 
 # Try importing with error handling
 try:
     from langchain_google_genai import ChatGoogleGenerativeAI
     from langchain_community.embeddings import HuggingFaceEmbeddings
-    from langchain_community.vectorstores import FAISS
-
     from langchain.chains.combine_documents import create_stuff_documents_chain
     from langchain.chains.retrieval import create_retrieval_chain
     from langchain_core.prompts import ChatPromptTemplate
+    from streamlit_extras.add_vertical_space import add_vertical_space
 except ImportError as e:
     st.error(f"❌ Import Error: {e}")
     st.error("Dependencies may be incompatible. Check requirements.txt")
-    st.info("Required: pydantic, langchain-google-genai")
+    st.info("Required: pydantic, langchain-google-genai, streamlit_extras")
     st.stop()
+
+# Import subject registry
+from subjects_config import SUBJECTS
 
 load_dotenv()
 
-# IMPORTANT: API key is stored in Streamlit Cloud Secrets
-# Go to: App Settings > Secrets > Add GOOGLE_API_KEY
-# This code will NOT expose your API key in the public repo
+# API key handling
 if "GOOGLE_API_KEY" in st.secrets:
     os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+elif os.getenv("GOOGLE_API_KEY"):
+    pass # Already set via .env
 else:
-    st.error("⚠️ GOOGLE_API_KEY not found in Streamlit secrets!")
-    st.info("Please add your API key in Streamlit Cloud: Settings > Secrets")
+    st.error("⚠️ GOOGLE_API_KEY not found!")
+    st.info("Please add your API key in Streamlit Cloud Secrets or local .env file.")
     st.stop()
 
 st.set_page_config(
-    page_title="IBT Chatbot😎",
+    page_title="Roma AI Study Assistant 🎓",
     page_icon="💡",
     layout="centered",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
 )
 
-# Sidebar contents
-with st.sidebar:
-    st.title("IBT assistant😊")
-    st.markdown('''
-        ## About
-        Welcome to the IBT Chatbot, your intelligent study companion designed by students, for students! This app simplifies your revision process by providing instant, accurate answers to your questions about IBT. Perfectly trained from our lecture notes.
-    ''')
-    add_vertical_space()
-    st.write('Made by Romy')
-
-# Custom CSS for dark theme
+# Custom CSS for dark theme and styling
 st.markdown(
     """
     <style>
@@ -57,10 +63,6 @@ st.markdown(
         background-color:#020203;
     }
     .stTextInput > div > div > input {
-        background-color: #262730;
-        color: #FAFAFA;
-    }
-    .stTextArea > div > div > textarea {
         background-color: #262730;
         color: #FAFAFA;
     }
@@ -79,98 +81,108 @@ st.markdown(
     .stChatMessage.assistant {
         text-align: left;
     }
+    /* Style for the subject badge */
+    .subject-badge {
+        display: inline-block;
+        background: #007bff;
+        color: white;
+        padding: 5px 15px;
+        border-radius: 15px;
+        font-size: 0.9em;
+        margin-bottom: 10px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-st.title("IBT Chatbot")
+# Sidebar contents
+with st.sidebar:
+    st.title("Bsta AI Assistant ✌️")
+    st.markdown("### 📚 Choose a Course")
+    
+    # Subject Selection
+    subject_names = list(SUBJECTS.keys())
+    selected_subject_name = st.radio(
+        "Select a course unit to study:",
+        subject_names,
+        index=0
+    )
+    
+    selected_cfg = SUBJECTS[selected_subject_name]
+    
+    add_vertical_space()
+    st.divider()
+    st.markdown(f"**About {selected_subject_name}:**")
+    st.caption(selected_cfg["description"])
+    st.divider()
+    st.write('Made by Khris Calvin')
 
-VECTOR_STORE_PATH = "ITB_notes_2025.pkl"
+# --- Session State Management for Subject Switching ---
+if "active_subject" not in st.session_state:
+    st.session_state.active_subject = selected_subject_name
+    st.session_state.messages = []
+
+# Detect subject change and reset history
+if st.session_state.active_subject != selected_subject_name:
+    st.session_state.active_subject = selected_subject_name
+    st.session_state.messages = []
+    st.rerun()
+
+# --- Resource Loading Functions (Cached) ---
 
 @st.cache_resource
 def load_embeddings():
-    """
-    Load the EXACT same embedding model used during vector store creation.
-    Model: sentence-transformers/all-MiniLM-L6-v2
-    Device: CPU (as specified in main.py)
-    """
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
     model_kwargs = {'device': 'cpu'}
-    embeddings = HuggingFaceEmbeddings(
-        model_name=model_name, 
-        model_kwargs=model_kwargs
-    )
-    return embeddings
+    return HuggingFaceEmbeddings(model_name=model_name, model_kwargs=model_kwargs)
 
 @st.cache_resource
-def load_vector_store(path):
+def load_vector_store(path, subject_name):
     """Load the pre-created vector store from pickle file"""
     if not os.path.exists(path):
-        st.error(f"❌ Vector store file not found: {path}")
-        st.error(f"Current directory: {os.getcwd()}")
-        st.error(f"Available files: {os.listdir('.')}")
-        st.stop()
-    
-
+        return None, f"❌ Vector store for **{subject_name}** not found at `{path}`."
     
     try:
         with open(path, "rb") as f:
             vector_store = pickle.load(f)
-        st.success(f"Hi there ✌️ I am Romy AI designed to help you answer questions about IBT. Ask any question below.")
-        return vector_store
+        return vector_store, None
     except Exception as e:
-        st.error(f"❌ Error loading vector store: {str(e)}")
-        st.stop()
+        return None, f"❌ Error loading vector store for {subject_name}: {str(e)}"
 
 @st.cache_resource
-def setup_qa_chain(_vector_store):
-    """Set up the QA chain using modern LangChain approach"""
-    llm = ChatGoogleGenerativeAI(
-        temperature=0, 
-        model="gemini-2.5-flash"
-    )
-    
-    # Create prompt template
-    prompt = ChatPromptTemplate.from_template("""
-    You are an expert in Bussiness administration. Answer the following question based only on the provided context.
-    Think step by step and provide a clear, detailed answer.
-    If the context doesn't contain enough information, say so but go ahead use the data you where trained on to answer the prompt provided.
-    
-    <context>
-    {context}
-    </context>
-    
-    Question: {input}
-    
-    Answer:""")
-    
-    # Create document chain
+def setup_qa_chain(_vector_store, subject_prompt):
+    """Set up the QA chain with a specific system prompt"""
+    llm = ChatGoogleGenerativeAI(temperature=0, model="gemini-2.5-flash")
+    prompt = ChatPromptTemplate.from_template(subject_prompt)
     document_chain = create_stuff_documents_chain(llm, prompt)
-    
-    # Create retriever
-    retriever = _vector_store.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 8}
-    )
-    
-    # Create retrieval chain
-    retrieval_chain = create_retrieval_chain(retriever, document_chain)
-    
-    return retrieval_chain
+    retriever = _vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 8})
+    return create_retrieval_chain(retriever, document_chain)
 
-# Load resources
+# --- MAIN APP LOGIC ---
+
+st.title("Bsta AI")
+st.markdown(f"<div class='subject-badge'>{selected_cfg['icon']} {selected_subject_name}</div>", unsafe_allow_html=True)
+
+# Load resources for the current subject
 try:
     embeddings = load_embeddings()
-    vector_store = load_vector_store(VECTOR_STORE_PATH)
-    qa_chain = setup_qa_chain(vector_store)
+    vector_store, error = load_vector_store(selected_cfg["pkl"], selected_subject_name)
+    
+    if error:
+        st.error(error)
+        st.warning(f"Please ensure `{selected_cfg['pkl']}` is present in the project directory.")
+        st.stop()
+        
+    qa_chain = setup_qa_chain(vector_store, selected_cfg["prompt"])
+    
+    # One-time success message per subject switch
+    if not st.session_state.messages:
+        st.success(f"Hi there ✌️ I am Bsta AI designed to help you answer questions about **{selected_subject_name}**. Ask any question below.")
+
 except Exception as e:
     st.error(f"Failed to load resources: {e}")
     st.stop()
-
-# Initialize chat history
-if "messages" not in st.session_state:
-    st.session_state.messages = []
 
 # Display chat history
 for message in st.session_state.messages:
@@ -178,30 +190,35 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # Chat input
-if prompt := st.chat_input("Ask a question about Introduction to  bussiness administration"):
-    # Add user message to chat history
+if prompt := st.chat_input(f"Ask a question about {selected_subject_name}"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate response
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        full_response = ""
         
         try:
-            # Use the retrieval chain
-            response = qa_chain.invoke({"input": prompt})
-            full_response = response["answer"]
+            with st.spinner("Thinking..."):
+                response = qa_chain.invoke({"input": prompt})
+                full_response = response["answer"]
             
             if not full_response or full_response.strip() == "":
-                full_response = "I couldn't find relevant information in the document. Please try rephrasing your question."
+                full_response = "I couldn't find relevant information in the course notes. Please try rephrasing your question."
             
+            message_placeholder.markdown(full_response)
+            
+            # Show sources in expander if available
+            if "context" in response and response["context"]:
+                with st.expander("📚 View source documents"):
+                    for i, doc in enumerate(response["context"], 1):
+                        st.markdown(f"**Source {i}:**")
+                        st.text(doc.page_content[:300] + "...")
+                        st.divider()
+                        
         except Exception as e:
-            full_response = f"❌ An error occurred: {str(e)}\n\nPlease try again or rephrase your question."
+            full_response = f"❌ An error occurred: {str(e)}\n\nPlease try again later."
             st.error(f"Error type: {type(e).__name__}")
-        
-        message_placeholder.markdown(full_response)
+            message_placeholder.markdown(full_response)
     
-    # Add assistant response to chat history
     st.session_state.messages.append({"role": "assistant", "content": full_response})
