@@ -1,29 +1,22 @@
-# Core App Framework
-streamlit==1.50.0
-
-# AI and LangChain
+# Main Frameworks
+streamlit>=1.35.0
 langchain>=0.3.0
-langchain-community
-langchain-google-genai
-langchain-core
-langchain-text-splitters
-pydantic
-langchain-google-genai
-streamlit_extras
+langchain-community>=0.3.0
+langchain-core>=0.3.0
 
-# Data and Vector Search
-faiss-cpu
-PyPDF2
-pandas
-numpy
-
-# Utilities
-python-dotenv
+# Google AI Integration
+langchain-google-genai>=2.0.0
 google-generativeai
-sentence-transformers
-tqdm
 
-# Streamlit Components (Extras)
+# Validation & Utilities
+pydantic>=2.0.0
+python-dotenv
+
+# Streamlit UI Components
 streamlit-extras
 streamlit-card
 st-annotated-text
+
+# PDF & Search (If your chatbot reads files)
+pypdf2
+faiss-cpu
